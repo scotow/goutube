@@ -1,10 +1,12 @@
 package main
 
 import (
-	"github.com/scotow/youtubelink"
+	"github.com/tomasen/realip"
 	"io/ioutil"
 	"log"
 	"net/http"
+
+	"github.com/scotow/youtubelink"
 )
 
 const (
@@ -14,6 +16,8 @@ const (
 )
 
 func parseGetRequest(w http.ResponseWriter, r *http.Request) {
+	log.Println(realip.FromRequest(r))
+
 	request := youtubelink.Request{}
 	err := request.AddVideoLink(string(r.URL.Path[1:]))
 

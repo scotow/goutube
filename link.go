@@ -2,13 +2,12 @@ package youtubelink
 
 import (
 	"errors"
-	"log"
 	"net"
 	"regexp"
 )
 
 var (
-	youtubeId = regexp.MustCompile(`[\w\-]{11}`)
+	youtubeId = regexp.MustCompile(`^[\w\-]{11}$`)
 	youtubeLink = regexp.MustCompile(`^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube\.com|youtu.be))(\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(\S+)?$`)
 )
 
@@ -26,12 +25,9 @@ func (r *Request) AddVideoLink(video string) error {
 	matches := youtubeLink.FindStringSubmatch(video)
 
 	if matches != nil {
-
 		r.video = matches[5]
 		return nil
 	}
-
-	log.Println(r.video)
 
 	return errors.New("invalid YouTube video link or id")
 }
