@@ -1,8 +1,13 @@
 package youtubelink
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io/ioutil"
+	"log"
 	"net"
+	"net/http"
 	"regexp"
 )
 
@@ -14,6 +19,11 @@ var (
 type Request struct {
 	video string
 	sourceIp string
+}
+
+type StreamPocketResponse struct {
+	Recorded string
+	Filename string
 }
 
 func (r *Request) AddVideoLink(video string) error {
@@ -41,7 +51,7 @@ func (r *Request) AddSourceIp(ip string) error {
 	return nil
 }
 
-func (r *Request) VideoLink() (string, error) {
+func (r *Request) YoutubeDlLink() (string, error) {
 	if r.video == "" {
 		return "", errors.New("no video specified")
 	}
@@ -61,4 +71,33 @@ func (r *Request) VideoLink() (string, error) {
 	}
 
 	return videoLink, nil
+}
+
+func (r *Request) StreamPocketLink() (string, error) {
+	if r.video == "" {
+		return "", errors.New("no video specified")
+	}
+
+	requestUrl := fmt.Sprintf("http://streampocket.net/json2?stream=https://www.youtube.com/watch?v=%s", r.video)
+
+	res, err := http.Get(requestUrl)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	data, err := ioutil.ReadAll(res.Body)
+	defer res.Body.Close()
+
+	if err != nil {
+		return "", errors.New("cannot reach remote api")
+	}
+
+	var response StreamPocketResponse
+	err = json.Unmarshal(data, &response)
+
+	if err != nil {
+		return "", errors.New("invalid remote api response")
+	}
+
+	return response.Recorded, nil
 }

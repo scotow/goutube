@@ -13,14 +13,15 @@ import (
 )
 
 const (
-	invalidMethod	= "invalid http method"
-	invalidVideo 	= "invalid youtube id or link"
-	invalidBody 	= "cannot read request body"
-	invalidSourceIp	= "cannot set source ip"
-	directLinkError	= "cannot get video direct link"
+	invalidMethod   = "invalid http method"
+	invalidVideo    = "invalid youtube id or link"
+	invalidBody     = "cannot read request body"
+	invalidSourceIp = "cannot set source ip"
+	directLinkError = "cannot get video direct link"
 )
 
 var (
+	useYoutubeDl *bool
 	useClientIp *bool
 )
 
@@ -58,7 +59,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if *useClientIp {
-		log.Println(realip.FromRequest(r))
 		err = yt.AddSourceIp(realip.FromRequest(r))
 		if err != nil {
 			http.Error(w, invalidSourceIp, http.StatusInternalServerError)
@@ -66,7 +66,13 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	directLink, err := yt.VideoLink()
+	var directLink string
+	if *useYoutubeDl {
+		directLink, err = yt.YoutubeDlLink()
+	} else {
+		directLink, err = yt.StreamPocketLink()
+	}
+
 
 	if err != nil {
 		http.Error(w, directLinkError, http.StatusInternalServerError)
@@ -86,12 +92,13 @@ func listeningAddress() string {
 }
 
 func main() {
-	if !youtubelink.IsAvailable() {
+	useClientIp = flag.Bool("i", false, "use real client ip")
+	useYoutubeDl = flag.Bool("y", false, "use youtube-dl package")
+	flag.Parse()
+
+	if *useYoutubeDl && !youtubelink.IsAvailable() {
 		log.Fatalln("youtube-dl package is not installed or cannot be found")
 	}
-
-	useClientIp = flag.Bool("i", false, "use real client ip")
-	flag.Parse()
 
 	http.HandleFunc("/", handler)
 	log.Fatal(http.ListenAndServe(listeningAddress(), nil))
