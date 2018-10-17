@@ -12,12 +12,20 @@ import (
 )
 
 var (
-	youtubeId = regexp.MustCompile(`^[\w\-]{11}$`)
-	youtubeLink = regexp.MustCompile(`^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube\.com|youtu.be))(\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(\S+)?$`)
+	youtubeId   = regexp.MustCompile(`^[\w\-]{11}$`)
+	youtubeLink = regexp.MustCompile(`^((?:https?:)?//)?((?:www|m)\.)?((?:youtube\.com|youtu.be))(/(?:[\w\-]+\?v=|embed/|v/)?)([\w\-]+)(\S+)?$`)
+)
+
+var (
+	ErrSource              = errors.New("invalid YouTube video link or id")
+	ErrIp                  = errors.New("invalid source ip")
+	ErrEmptyVideo          = errors.New("no video specified")
+	ErrStreamPocketApi     = errors.New("cannot reach remote api")
+	ErrSteamPocketResponse = errors.New("invalid remote api response")
 )
 
 type Request struct {
-	video string
+	video    string
 	sourceIp string
 }
 
@@ -39,12 +47,12 @@ func (r *Request) AddVideoLink(video string) error {
 		return nil
 	}
 
-	return errors.New("invalid YouTube video link or id")
+	return ErrSource
 }
 
 func (r *Request) AddSourceIp(ip string) error {
 	if net.ParseIP(ip) == nil {
-		return errors.New("invalid source ip")
+		return ErrIp
 	}
 
 	r.sourceIp = ip
@@ -53,10 +61,10 @@ func (r *Request) AddSourceIp(ip string) error {
 
 func (r *Request) YoutubeDlLink() (string, error) {
 	if r.video == "" {
-		return "", errors.New("no video specified")
+		return "", ErrEmptyVideo
 	}
 
-	args := []string {"-f", "best", "-g"}
+	args := []string{"-f", "best", "-g"}
 
 	if r.sourceIp != "" {
 		args = append(args, "--source-address", r.sourceIp)
@@ -75,7 +83,7 @@ func (r *Request) YoutubeDlLink() (string, error) {
 
 func (r *Request) StreamPocketLink() (string, error) {
 	if r.video == "" {
-		return "", errors.New("no video specified")
+		return "", ErrEmptyVideo
 	}
 
 	requestUrl := fmt.Sprintf("http://streampocket.net/json2?stream=https://www.youtube.com/watch?v=%s", r.video)
@@ -89,14 +97,14 @@ func (r *Request) StreamPocketLink() (string, error) {
 	defer res.Body.Close()
 
 	if err != nil {
-		return "", errors.New("cannot reach remote api")
+		return "", ErrStreamPocketApi
 	}
 
 	var response StreamPocketResponse
 	err = json.Unmarshal(data, &response)
 
 	if err != nil {
-		return "", errors.New("invalid remote api response")
+		return "", ErrSteamPocketResponse
 	}
 
 	return response.Recorded, nil
