@@ -17,11 +17,11 @@ var (
 )
 
 var (
-	ErrSource              = errors.New("invalid YouTube video link or id")
-	ErrIp                  = errors.New("invalid source ip")
-	ErrEmptyVideo          = errors.New("no video specified")
-	ErrStreamPocketApi     = errors.New("cannot reach remote api")
-	ErrSteamPocketResponse = errors.New("invalid remote api response")
+	ErrSource               = errors.New("invalid YouTube video link or id")
+	ErrIp                   = errors.New("invalid source ip")
+	ErrEmptyVideo           = errors.New("no video specified")
+	ErrStreamPocketApi      = errors.New("cannot reach remote api")
+	ErrStreamPocketResponse = errors.New("invalid remote api response")
 )
 
 type Request struct {
@@ -41,7 +41,6 @@ func (r *Request) AddVideoLink(video string) error {
 	}
 
 	matches := youtubeLink.FindStringSubmatch(video)
-
 	if matches != nil {
 		r.video = matches[5]
 		return nil
@@ -73,7 +72,6 @@ func (r *Request) YoutubeDlLink() (string, error) {
 	args = append(args, r.video)
 
 	videoLink, stderr, err := runCommand("youtube-dl", args...)
-
 	if err != nil {
 		return stderr, err
 	}
@@ -94,17 +92,19 @@ func (r *Request) StreamPocketLink() (string, error) {
 	}
 
 	data, err := ioutil.ReadAll(res.Body)
-	defer res.Body.Close()
+	if err != nil {
+		return "", ErrStreamPocketApi
+	}
 
+	err = res.Body.Close()
 	if err != nil {
 		return "", ErrStreamPocketApi
 	}
 
 	var response StreamPocketResponse
 	err = json.Unmarshal(data, &response)
-
 	if err != nil {
-		return "", ErrSteamPocketResponse
+		return "", ErrStreamPocketResponse
 	}
 
 	return response.Recorded, nil

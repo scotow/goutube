@@ -13,16 +13,18 @@ import (
 )
 
 const (
-	invalidMethod   = "invalid http method"
-	invalidVideo    = "invalid youtube id or link"
-	invalidBody     = "cannot read request body"
-	invalidSourceIp = "cannot set source ip"
-	directLinkError = "cannot get video direct link"
+	maxBodySize = 512
 )
 
 var (
-	useYoutubeDl *bool
-	useClientIp *bool
+	errInvalidMethod = errors.New("invalid http method")
+	errBodyTooLarge  = errors.New("request body too large")
+	errReadBody      = errors.New("cannot read request body")
+)
+
+var (
+	clientIpFlag  = flag.Bool("i", false, "use real client ip")
+	youtubeDlFlag = flag.Bool("y", false, "use youtube-dl package")
 )
 
 func parseUrl(yt *youtubelink.Request, r *http.Request) error {
@@ -30,11 +32,18 @@ func parseUrl(yt *youtubelink.Request, r *http.Request) error {
 }
 
 func parseBody(yt *youtubelink.Request, r *http.Request) error {
-	body, err := ioutil.ReadAll(r.Body)
-	defer r.Body.Close()
+	if r.ContentLength > maxBodySize {
+		return errBodyTooLarge
+	}
 
+	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return errors.New(invalidBody)
+		return errReadBody
+	}
+
+	err = r.Body.Close()
+	if err != nil {
+		return errReadBody
 	}
 
 	return yt.AddVideoLink(string(body))
@@ -42,40 +51,42 @@ func parseBody(yt *youtubelink.Request, r *http.Request) error {
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" && r.Method != "POST" {
-		http.Error(w, invalidMethod, http.StatusMethodNotAllowed)
+		http.Error(w, errInvalidMethod.Error(), http.StatusMethodNotAllowed)
 		return
 	}
 
 	yt := youtubelink.Request{}
 	err := parseUrl(&yt, r)
 
-	if err != nil && r.Method == "POST" {
+	if err == youtubelink.ErrSource && r.Method == "POST" {
 		err = parseBody(&yt, r)
-	}
-
-	if err != nil {
-		http.Error(w, invalidVideo, http.StatusNotAcceptable)
+	} else {
+		http.Error(w, err.Error(), http.StatusNotAcceptable)
 		return
 	}
 
-	if *useClientIp {
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotAcceptable)
+		return
+	}
+
+	if *clientIpFlag {
 		err = yt.AddSourceIp(realip.FromRequest(r))
 		if err != nil {
-			http.Error(w, invalidSourceIp, http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
 
 	var directLink string
-	if *useYoutubeDl {
+	if *youtubeDlFlag {
 		directLink, err = yt.YoutubeDlLink()
 	} else {
 		directLink, err = yt.StreamPocketLink()
 	}
 
-
 	if err != nil {
-		http.Error(w, directLinkError, http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -92,11 +103,9 @@ func listeningAddress() string {
 }
 
 func main() {
-	useClientIp = flag.Bool("i", false, "use real client ip")
-	useYoutubeDl = flag.Bool("y", false, "use youtube-dl package")
 	flag.Parse()
 
-	if *useYoutubeDl && !youtubelink.IsAvailable() {
+	if *youtubeDlFlag && !youtubelink.IsAvailable() {
 		log.Fatalln("youtube-dl package is not installed or cannot be found")
 	}
 
