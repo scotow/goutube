@@ -3,13 +3,12 @@ package main
 import (
 	"errors"
 	"flag"
+	"github.com/scotow/youtubelink"
 	"github.com/tomasen/realip"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
-
-	"github.com/scotow/youtubelink"
+	"strconv"
 )
 
 const (
@@ -23,6 +22,7 @@ var (
 )
 
 var (
+	portFlag      = flag.Int("p", 8080, "listening port")
 	clientIpFlag  = flag.Bool("i", false, "use real client ip")
 	youtubeDlFlag = flag.Bool("y", false, "use youtube-dl package")
 )
@@ -93,15 +93,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, directLink, http.StatusFound)
 }
 
-func listeningAddress() string {
-	port, set := os.LookupEnv("PORT")
-	if !set {
-		port = "8080"
-	}
-
-	return ":" + port
-}
-
 func main() {
 	flag.Parse()
 
@@ -110,5 +101,5 @@ func main() {
 	}
 
 	http.HandleFunc("/", handler)
-	log.Fatal(http.ListenAndServe(listeningAddress(), nil))
+	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(*portFlag), nil))
 }
