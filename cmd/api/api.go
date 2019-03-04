@@ -60,9 +60,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	if err == youtubelink.ErrSource && r.Method == "POST" {
 		err = parseBody(&yt, r)
-	} else {
-		http.Error(w, err.Error(), http.StatusNotAcceptable)
-		return
 	}
 
 	if err != nil {

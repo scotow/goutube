@@ -11,6 +11,10 @@ import (
 	"regexp"
 )
 
+const (
+	youtubeBaseURL = "https://www.youtube.com/watch?v="
+)
+
 var (
 	youtubeId   = regexp.MustCompile(`^[\w\-]{11}$`)
 	youtubeLink = regexp.MustCompile(`^((?:https?:)?//)?((?:www|m)\.)?((?:youtube\.com|youtu.be))(/(?:[\w\-]+\?v=|embed/|v/)?)([\w\-]+)(\S+)?$`)
@@ -84,7 +88,7 @@ func (r *Request) StreamPocketLink() (string, error) {
 		return "", ErrEmptyVideo
 	}
 
-	requestUrl := fmt.Sprintf("http://streampocket.net/json2?stream=https://www.youtube.com/watch?v=%s", r.video)
+	requestUrl := fmt.Sprintf("http://streampocket.net/json2?stream=%s%s", youtubeBaseURL, r.video)
 
 	res, err := http.Get(requestUrl)
 	if err != nil {
