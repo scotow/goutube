@@ -59,7 +59,7 @@ func main() {
 
 	videos, err := getVideos()
 	if err != nil {
-		log.Fatalln("cannot fet video(s)", err)
+		log.Fatalln("cannot get video(s)", err)
 	}
 
 	hadError := false
