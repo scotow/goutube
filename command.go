@@ -2,6 +2,7 @@ package youtubelink
 
 import (
 	"bytes"
+	"io"
 	"os/exec"
 )
 
@@ -21,27 +22,32 @@ func IsAvailable() bool {
 	return commandExists("youtube-dl")
 }
 
-func runCommandString(name string, arg ...string) (string, string, error) {
+func runCommand(out, err io.Writer, name string, arg ...string) error {
 	cmd := exec.Command(name, arg...)
 
+	cmd.Stdout = out
+	cmd.Stderr = err
+
+	return cmd.Run()
+}
+
+func runCommandString(name string, arg ...string) (string, string, error) {
 	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
 
-	err := cmd.Run()
-	if err != nil {
-		return "", "", err
-	}
-
-	return string(stdout.Bytes()), string(stderr.Bytes()), nil
+	err := runCommand(&stdout, &stderr, name, arg...)
+	return stdout.String(), stderr.String(), err
 }
 
 func bestVideoDefaultArgs() []string {
-	return []string{"-f", "best", "-g"}
+	return []string{"-f", "best"}
+}
+
+func bestVideoLinkDefaultArgs() []string {
+	return append(bestVideoDefaultArgs(), "-g")
 }
 
 func bestVideoLink(video string) (string, error) {
-	args := bestVideoDefaultArgs()
+	args := bestVideoLinkDefaultArgs()
 	args = append(args, video)
 
 	videoLink, stderr, err := runCommandString(youtubeDlCommand, args...)
@@ -53,7 +59,7 @@ func bestVideoLink(video string) (string, error) {
 }
 
 func bestVideoLinkWithIp(video string, ip string) (string, error) {
-	args := bestVideoDefaultArgs()
+	args := bestVideoLinkDefaultArgs()
 	args = append(args, "--source-address", ip, video)
 
 	videoLink, stderr, err := runCommandString(youtubeDlCommand, args...)
@@ -62,4 +68,11 @@ func bestVideoLinkWithIp(video string, ip string) (string, error) {
 	}
 
 	return videoLink, nil
+}
+
+func streamBestVideo(video string, wr io.Writer) error {
+	args := bestVideoDefaultArgs()
+	args = append(args, video)
+
+	return runCommand(wr, nil, youtubeDlCommand, args...)
 }

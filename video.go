@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -103,4 +104,12 @@ func (r *Request) StreamPocketLink() (string, error) {
 	}
 
 	return response.Recorded, nil
+}
+
+func (r *Request) Stream(wr io.Writer) error {
+	if r.video == "" {
+		return ErrEmptyVideo
+	}
+
+	return streamBestVideo(r.video, wr)
 }
