@@ -4,11 +4,22 @@ import (
 	"bytes"
 	"io"
 	"os/exec"
+	"strings"
 )
 
-const (
-	youtubeDlCommand = "youtube-dl"
+var (
+	youtubeDlCommandName = "youtube-dl"
+	youtubeDlCommandPath = "youtube-dl"
 )
+
+func init() {
+	path, _, err := runCommandString("/bin/sh", "-c", "command -v "+youtubeDlCommandName)
+	if err != nil {
+		return
+	}
+
+	youtubeDlCommandPath = strings.TrimSpace(path)
+}
 
 func commandExists(name string) bool {
 	cmd := exec.Command("/bin/sh", "-c", "command -v "+name)
@@ -50,7 +61,7 @@ func bestVideoLink(video string) (string, error) {
 	args := bestVideoLinkDefaultArgs()
 	args = append(args, video)
 
-	videoLink, stderr, err := runCommandString(youtubeDlCommand, args...)
+	videoLink, stderr, err := runCommandString(youtubeDlCommandPath, args...)
 	if err != nil {
 		return stderr, err
 	}
@@ -62,7 +73,7 @@ func bestVideoLinkWithIp(video string, ip string) (string, error) {
 	args := bestVideoLinkDefaultArgs()
 	args = append(args, "--source-address", ip, video)
 
-	videoLink, stderr, err := runCommandString(youtubeDlCommand, args...)
+	videoLink, stderr, err := runCommandString(youtubeDlCommandPath, args...)
 	if err != nil {
 		return stderr, err
 	}
@@ -74,5 +85,5 @@ func streamBestVideo(video string, wr io.Writer) error {
 	args := bestVideoDefaultArgs()
 	args = append(args, "-o", "-", video)
 
-	return runCommand(wr, nil, youtubeDlCommand, args...)
+	return runCommand(wr, nil, youtubeDlCommandPath, args...)
 }
