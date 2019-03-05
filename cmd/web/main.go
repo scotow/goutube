@@ -3,12 +3,13 @@ package main
 import (
 	"errors"
 	"flag"
-	"github.com/scotow/youtubelink"
-	"github.com/tomasen/realip"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
+
+	"github.com/scotow/youtubelink"
+	"github.com/tomasen/realip"
 )
 
 const (
