@@ -23,10 +23,11 @@ var (
 )
 
 var (
-	portFlag      = flag.Int("p", 8080, "HTTP listening port")
-	clientIpFlag  = flag.Bool("i", false, "use real client ip while using youtube-dl redirection")
-	youtubeDlFlag = flag.Bool("y", false, "use youtube-dl package for redirection feature")
-	streamKeyFlag = flag.String("k", "", "authorization token for youtube-dl video streaming (disable if empty)")
+	portFlag          = flag.Int("p", 8080, "HTTP listening port")
+	clientIpFlag      = flag.Bool("i", false, "use real client ip while using youtube-dl redirection")
+	youtubeDlPathFlag = flag.String("P", "", "path to the youtube-dl command (will look in $PATH if not specified)")
+	youtubeDlFlag     = flag.Bool("y", false, "use youtube-dl package for redirection feature")
+	streamKeyFlag     = flag.String("k", "", "authorization token for youtube-dl video streaming (disable if empty)")
 )
 
 func parseUrl(yt *youtubelink.Request, r *http.Request) error {
@@ -127,6 +128,10 @@ func stream(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	flag.Parse()
+
+	if *youtubeDlPathFlag != "" {
+		youtubelink.SetYoutubeDlCommand(*youtubeDlPathFlag)
+	}
 
 	if (*youtubeDlFlag || *streamKeyFlag != "") && !youtubelink.IsAvailable() {
 		log.Fatalln("youtube-dl package is not installed or cannot be found")
