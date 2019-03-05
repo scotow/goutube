@@ -26,6 +26,7 @@ var (
 	portFlag      = flag.Int("p", 8080, "listening port")
 	clientIpFlag  = flag.Bool("i", false, "use real client ip")
 	youtubeDlFlag = flag.Bool("y", false, "use youtube-dl package")
+	streamKeyFlag = flag.String("k", "", "authorization token for video stream (disable if empty)")
 )
 
 func parseUrl(yt *youtubelink.Request, r *http.Request) error {
@@ -50,10 +51,10 @@ func parseBody(yt *youtubelink.Request, r *http.Request) error {
 	return yt.AddVideoLink(string(body))
 }
 
-func handler(w http.ResponseWriter, r *http.Request) {
+func parseRequest(w http.ResponseWriter, r *http.Request) *youtubelink.Request {
 	if r.Method != "GET" && r.Method != "POST" {
 		http.Error(w, errInvalidMethod.Error(), http.StatusMethodNotAllowed)
-		return
+		return nil
 	}
 
 	yt := youtubelink.Request{}
@@ -65,18 +66,36 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotAcceptable)
-		return
+		return nil
 	}
 
 	if *clientIpFlag {
 		err = yt.AddSourceIp(realip.FromRequest(r))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			return nil
 		}
 	}
 
+	return &yt
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+	if *streamKeyFlag != "" && r.Header.Get("Authorization") == *streamKeyFlag {
+		stream(w, r)
+	} else {
+		redirect(w, r)
+	}
+}
+
+func redirect(w http.ResponseWriter, r *http.Request) {
+	yt := parseRequest(w, r)
+	if yt == nil {
+		return
+	}
+
 	var directLink string
+	var err error
 	if *youtubeDlFlag {
 		directLink, err = yt.YoutubeDlLink()
 	} else {
@@ -91,10 +110,25 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, directLink, http.StatusFound)
 }
 
+func stream(w http.ResponseWriter, r *http.Request) {
+	yt := parseRequest(w, r)
+	if yt == nil {
+		return
+	}
+
+	w.Header().Set("Content-Type", "video/mp4")
+
+	err := yt.Stream(w)
+	if err != nil {
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
+}
+
 func main() {
 	flag.Parse()
 
-	if *youtubeDlFlag && !youtubelink.IsAvailable() {
+	if (*youtubeDlFlag || *streamKeyFlag != "") && !youtubelink.IsAvailable() {
 		log.Fatalln("youtube-dl package is not installed or cannot be found")
 	}
 
