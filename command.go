@@ -39,7 +39,7 @@ func runCommandString(name string, arg ...string) (string, string, error) {
 }
 
 func bestVideoDefaultArgs() []string {
-	return []string{"-f", "best/mp4"}
+	return []string{"-q", "-f", "best/mp4"}
 }
 
 func bestVideoLinkDefaultArgs() []string {
@@ -72,7 +72,7 @@ func bestVideoLinkWithIp(video string, ip string) (string, error) {
 
 func streamBestVideo(video string, wr io.Writer) error {
 	args := bestVideoDefaultArgs()
-	args = append(args, "-o", "-", "-q", video)
+	args = append(args, "-o", "-", video)
 
 	return runCommand(wr, nil, youtubeDlCommand, args...)
 }

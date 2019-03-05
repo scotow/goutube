@@ -23,10 +23,10 @@ var (
 )
 
 var (
-	portFlag      = flag.Int("p", 8080, "listening port")
-	clientIpFlag  = flag.Bool("i", false, "use real client ip")
-	youtubeDlFlag = flag.Bool("y", false, "use youtube-dl package")
-	streamKeyFlag = flag.String("k", "", "authorization token for video stream (disable if empty)")
+	portFlag      = flag.Int("p", 8080, "HTTP listening port")
+	clientIpFlag  = flag.Bool("i", false, "use real client ip while using youtube-dl redirection")
+	youtubeDlFlag = flag.Bool("y", false, "use youtube-dl package for redirection feature")
+	streamKeyFlag = flag.String("k", "", "authorization token for youtube-dl video streaming (disable if empty)")
 )
 
 func parseUrl(yt *youtubelink.Request, r *http.Request) error {
