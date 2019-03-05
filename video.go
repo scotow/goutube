@@ -67,20 +67,11 @@ func (r *Request) YoutubeDlLink() (string, error) {
 		return "", ErrEmptyVideo
 	}
 
-	args := []string{"-f", "best", "-g"}
-
-	if r.sourceIp != "" {
-		args = append(args, "--source-address", r.sourceIp)
+	if r.sourceIp == "" {
+		return bestVideoLink(r.video)
+	} else {
+		return bestVideoLinkWithIp(r.video, r.sourceIp)
 	}
-
-	args = append(args, r.video)
-
-	videoLink, stderr, err := runCommand("youtube-dl", args...)
-	if err != nil {
-		return stderr, err
-	}
-
-	return videoLink, nil
 }
 
 func (r *Request) StreamPocketLink() (string, error) {
