@@ -36,7 +36,7 @@ func getVideos() ([]string, error) {
 }
 
 func fetchLink(video string) (string, error) {
-	yt := youtubelink.Request{}
+	yt := youtubelink.Video{}
 
 	err := yt.AddVideoLink(video)
 	if err != nil {

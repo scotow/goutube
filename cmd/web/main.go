@@ -1,15 +1,17 @@
 package main
 
 import (
+	"encoding/base64"
 	"errors"
 	"flag"
+	"github.com/gorilla/mux"
+	"github.com/scotow/youtubelink"
+	"github.com/tomasen/realip"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
-
-	"github.com/scotow/youtubelink"
-	"github.com/tomasen/realip"
+	"strings"
 )
 
 const (
@@ -17,9 +19,8 @@ const (
 )
 
 var (
-	errInvalidMethod = errors.New("invalid http method")
-	errBodyTooLarge  = errors.New("request body too large")
-	errReadBody      = errors.New("cannot read request body")
+	errBodyTooLarge = errors.New("request body too large")
+	errReadBody     = errors.New("cannot read request body")
 )
 
 var (
@@ -30,69 +31,103 @@ var (
 	streamKeyFlag     = flag.String("k", "", "authorization token for youtube-dl video streaming (disable if empty)")
 )
 
-func parseUrl(yt *youtubelink.Request, r *http.Request) error {
-	return yt.AddVideoLink(string(r.URL.Path[1:]))
+type distributionHandler func(*youtubelink.Video, http.ResponseWriter, *http.Request)
+type videoMiddleware func(http.ResponseWriter, *http.Request, distributionHandler)
+
+func authorizationMiddleware(w http.ResponseWriter, r *http.Request, m videoMiddleware, h distributionHandler) {
+	if *streamKeyFlag == "" {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	header := r.Header.Get("Authorization")
+	if header == "" {
+		w.Header().Set("WWW-Authenticate", "Basic")
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return
+	}
+
+	if header == *streamKeyFlag {
+		m(w, r, h)
+		return
+	}
+
+	if strings.HasPrefix(header, "Basic") {
+		part := strings.Split(header, " ")
+		if len(part) != 2 {
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
+
+		keyBytes, err := base64.StdEncoding.DecodeString(part[1])
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
+
+		key := string(keyBytes)
+		if strings.HasPrefix(key, ":") {
+			key = key[1:]
+		}
+
+		if key == *streamKeyFlag {
+			m(w, r, h)
+			return
+		}
+	}
+
+	http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 }
 
-func parseBody(yt *youtubelink.Request, r *http.Request) error {
+func varMiddleware(w http.ResponseWriter, r *http.Request, h distributionHandler) {
+	video, exists := mux.Vars(r)["video"]
+	if !exists {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	requestMiddleware(video, w, r, h)
+}
+
+func bodyMiddleware(w http.ResponseWriter, r *http.Request, h distributionHandler) {
 	if r.ContentLength > maxBodySize {
-		return errBodyTooLarge
+		http.Error(w, errBodyTooLarge.Error(), http.StatusNotAcceptable)
+		return
 	}
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return errReadBody
+		http.Error(w, errReadBody.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	err = r.Body.Close()
 	if err != nil {
-		return errReadBody
+		http.Error(w, errReadBody.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	return yt.AddVideoLink(string(body))
+	requestMiddleware(string(body), w, r, h)
 }
 
-func parseRequest(w http.ResponseWriter, r *http.Request) *youtubelink.Request {
-	if r.Method != "GET" && r.Method != "POST" {
-		http.Error(w, errInvalidMethod.Error(), http.StatusMethodNotAllowed)
-		return nil
-	}
-
-	yt := youtubelink.Request{}
-	err := parseUrl(&yt, r)
-
-	if err == youtubelink.ErrSource && r.Method == "POST" {
-		err = parseBody(&yt, r)
-	}
-
+func requestMiddleware(video string, w http.ResponseWriter, r *http.Request, h distributionHandler) {
+	yt := youtubelink.Video{}
+	err := yt.AddVideoLink(video)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotAcceptable)
-		return nil
+		return
 	}
 
+	h(&yt, w, r)
+}
+
+func redirectMiddleware(yt *youtubelink.Video, w http.ResponseWriter, r *http.Request) {
 	if *clientIpFlag {
-		err = yt.AddSourceIp(realip.FromRequest(r))
+		err := yt.AddSourceIp(realip.FromRequest(r))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return nil
+			return
 		}
-	}
-
-	return &yt
-}
-
-func handler(w http.ResponseWriter, r *http.Request) {
-	if *streamKeyFlag != "" && r.Header.Get("Authorization") == *streamKeyFlag {
-		stream(w, r)
-	} else {
-		redirect(w, r)
-	}
-}
-
-func redirect(w http.ResponseWriter, r *http.Request) {
-	yt := parseRequest(w, r)
-	if yt == nil {
-		return
 	}
 
 	var directLink string
@@ -111,12 +146,7 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, directLink, http.StatusFound)
 }
 
-func stream(w http.ResponseWriter, r *http.Request) {
-	yt := parseRequest(w, r)
-	if yt == nil {
-		return
-	}
-
+func streamMiddleware(yt *youtubelink.Video, w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "video/mp4")
 
 	err := yt.Stream(w)
@@ -124,6 +154,22 @@ func stream(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
+}
+
+func redirectVarHandler(w http.ResponseWriter, r *http.Request) {
+	varMiddleware(w, r, redirectMiddleware)
+}
+
+func redirectBodyHandler(w http.ResponseWriter, r *http.Request) {
+	bodyMiddleware(w, r, redirectMiddleware)
+}
+
+func streamVarHandler(w http.ResponseWriter, r *http.Request) {
+	authorizationMiddleware(w, r, varMiddleware, streamMiddleware)
+}
+
+func streamBodyHandler(w http.ResponseWriter, r *http.Request) {
+	authorizationMiddleware(w, r, bodyMiddleware, streamMiddleware)
 }
 
 func main() {
@@ -137,6 +183,20 @@ func main() {
 		log.Fatalln("youtube-dl package is not installed or cannot be found")
 	}
 
-	http.HandleFunc("/", handler)
-	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(*portFlag), nil))
+	r := mux.NewRouter()
+	r.HandleFunc("/", redirectBodyHandler).Methods(http.MethodPost)
+	r.HandleFunc("/{video}", redirectVarHandler).Methods(http.MethodGet)
+	r.HandleFunc("/link", redirectBodyHandler).Methods(http.MethodPost)
+	r.HandleFunc("/link/{video}", redirectVarHandler).Methods(http.MethodGet)
+	r.HandleFunc("/redirect", redirectBodyHandler).Methods(http.MethodPost)
+	r.HandleFunc("/redirect/{video}", redirectVarHandler).Methods(http.MethodGet)
+
+	if *streamKeyFlag != "" {
+		r.HandleFunc("/stream", streamBodyHandler).Methods(http.MethodPost)
+		r.HandleFunc("/stream/{video}", streamVarHandler).Methods(http.MethodGet)
+		r.HandleFunc("/direct", streamBodyHandler).Methods(http.MethodPost)
+		r.HandleFunc("/direct/{video}", streamVarHandler).Methods(http.MethodGet)
+	}
+
+	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(*portFlag), r))
 }

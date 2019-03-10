@@ -29,7 +29,7 @@ var (
 	ErrStreamPocketResponse = errors.New("invalid remote api response")
 )
 
-type Request struct {
+type Video struct {
 	video    string
 	sourceIp string
 }
@@ -39,48 +39,48 @@ type StreamPocketResponse struct {
 	Filename string
 }
 
-func (r *Request) AddVideoLink(video string) error {
+func (v *Video) AddVideoLink(video string) error {
 	if youtubeId.MatchString(video) {
-		r.video = video
+		v.video = video
 		return nil
 	}
 
 	matches := youtubeLink.FindStringSubmatch(video)
 	if matches != nil {
-		r.video = matches[5]
+		v.video = matches[5]
 		return nil
 	}
 
 	return ErrSource
 }
 
-func (r *Request) AddSourceIp(ip string) error {
+func (v *Video) AddSourceIp(ip string) error {
 	if net.ParseIP(ip) == nil {
 		return ErrIp
 	}
 
-	r.sourceIp = ip
+	v.sourceIp = ip
 	return nil
 }
 
-func (r *Request) YoutubeDlLink() (string, error) {
-	if r.video == "" {
+func (v *Video) YoutubeDlLink() (string, error) {
+	if v.video == "" {
 		return "", ErrEmptyVideo
 	}
 
-	if r.sourceIp == "" {
-		return bestVideoLink(r.video)
+	if v.sourceIp == "" {
+		return bestVideoLink(v.video)
 	} else {
-		return bestVideoLinkWithIp(r.video, r.sourceIp)
+		return bestVideoLinkWithIp(v.video, v.sourceIp)
 	}
 }
 
-func (r *Request) StreamPocketLink() (string, error) {
-	if r.video == "" {
+func (v *Video) StreamPocketLink() (string, error) {
+	if v.video == "" {
 		return "", ErrEmptyVideo
 	}
 
-	requestUrl := fmt.Sprintf("http://streampocket.net/json2?stream=%s%s", youtubeBaseURL, r.video)
+	requestUrl := fmt.Sprintf("http://streampocket.net/json2?stream=%s%s", youtubeBaseURL, v.video)
 
 	res, err := http.Get(requestUrl)
 	if err != nil {
@@ -106,10 +106,10 @@ func (r *Request) StreamPocketLink() (string, error) {
 	return response.Recorded, nil
 }
 
-func (r *Request) Stream(wr io.Writer) error {
-	if r.video == "" {
+func (v *Video) Stream(wr io.Writer) error {
+	if v.video == "" {
 		return ErrEmptyVideo
 	}
 
-	return streamBestVideo(r.video, wr)
+	return streamBestVideo(v.video, wr)
 }
