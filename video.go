@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	youtubeBaseURL = "https://www.youtube.com/watch?v="
+	youtubeWatchBaseURL  = "https://www.youtube.com/watch?v="
+	youtubeExistsBaseURL = "https://www.youtube.com/oembed?url=http://www.youtube.com/watch?v="
 )
 
 var (
@@ -63,6 +64,16 @@ func (v *Video) AddSourceIp(ip string) error {
 	return nil
 }
 
+func (v *Video) Exists() (bool, error) {
+	requestUrl := fmt.Sprintf("%s%s", youtubeExistsBaseURL, v.video)
+	resp, err := http.Get(requestUrl)
+	if err != nil {
+		return false, err
+	}
+
+	return resp.StatusCode == 200, nil
+}
+
 func (v *Video) YoutubeDlLink() (string, error) {
 	if v.video == "" {
 		return "", ErrEmptyVideo
@@ -80,7 +91,7 @@ func (v *Video) StreamPocketLink() (string, error) {
 		return "", ErrEmptyVideo
 	}
 
-	requestUrl := fmt.Sprintf("http://streampocket.net/json2?stream=%s%s", youtubeBaseURL, v.video)
+	requestUrl := fmt.Sprintf("http://streampocket.net/json2?stream=%s%s", youtubeWatchBaseURL, v.video)
 
 	res, err := http.Get(requestUrl)
 	if err != nil {

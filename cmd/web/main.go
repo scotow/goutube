@@ -19,8 +19,9 @@ const (
 )
 
 var (
-	errBodyTooLarge = errors.New("request body too large")
-	errReadBody     = errors.New("cannot read request body")
+	errBodyTooLarge  = errors.New("request body too large")
+	errReadBody      = errors.New("cannot read request body")
+	errVideoNotFound = errors.New("video doesn't exists")
 )
 
 var (
@@ -111,10 +112,23 @@ func bodyMiddleware(w http.ResponseWriter, r *http.Request, h distributionHandle
 }
 
 func requestMiddleware(video string, w http.ResponseWriter, r *http.Request, h distributionHandler) {
+	// Build video object.
 	yt := youtubelink.Video{}
 	err := yt.AddVideoLink(video)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotAcceptable)
+		return
+	}
+
+	// Check if the video exists first.
+	exists, err := yt.Exists()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if !exists {
+		http.Error(w, errVideoNotFound.Error(), http.StatusNotFound)
 		return
 	}
 
@@ -147,6 +161,7 @@ func redirectMiddleware(yt *youtubelink.Video, w http.ResponseWriter, r *http.Re
 }
 
 func streamMiddleware(yt *youtubelink.Video, w http.ResponseWriter, _ *http.Request) {
+	// Stream the video data.
 	w.Header().Set("Content-Type", "video/mp4")
 
 	err := yt.Stream(w)
