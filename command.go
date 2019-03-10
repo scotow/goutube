@@ -43,7 +43,7 @@ func runCommandString(name string, arg ...string) (string, string, error) {
 }
 
 func bestVideoDefaultArgs() []string {
-	return []string{"-q", "-f", "best/mp4"}
+	return []string{"-q", "-f", "best[ext=mp4]"}
 }
 
 func bestVideoLinkDefaultArgs() []string {
