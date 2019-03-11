@@ -1,4 +1,4 @@
-package youtubelink
+package goutube
 
 import (
 	"bytes"

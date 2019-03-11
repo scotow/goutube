@@ -5,7 +5,7 @@ import (
 	"errors"
 	"flag"
 	"github.com/gorilla/mux"
-	"github.com/scotow/youtubelink"
+	"github.com/scotow/goutube"
 	"github.com/tomasen/realip"
 	"io/ioutil"
 	"log"
@@ -32,7 +32,7 @@ var (
 	streamKeyFlag     = flag.String("k", "", "authorization token for youtube-dl video streaming (disable if empty)")
 )
 
-type distributionHandler func(*youtubelink.Video, http.ResponseWriter, *http.Request)
+type distributionHandler func(*goutube.Video, http.ResponseWriter, *http.Request)
 type videoMiddleware func(http.ResponseWriter, *http.Request, distributionHandler)
 
 func authorizationMiddleware(w http.ResponseWriter, r *http.Request, m videoMiddleware, h distributionHandler) {
@@ -127,7 +127,7 @@ func bodyMiddleware(w http.ResponseWriter, r *http.Request, h distributionHandle
 
 func requestMiddleware(video string, w http.ResponseWriter, r *http.Request, h distributionHandler) {
 	// Build video object.
-	yt := youtubelink.Video{}
+	yt := goutube.Video{}
 	err := yt.AddVideoLink(video)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotAcceptable)
@@ -149,7 +149,7 @@ func requestMiddleware(video string, w http.ResponseWriter, r *http.Request, h d
 	h(&yt, w, r)
 }
 
-func redirectMiddleware(yt *youtubelink.Video, w http.ResponseWriter, r *http.Request) {
+func redirectMiddleware(yt *goutube.Video, w http.ResponseWriter, r *http.Request) {
 	var directLink string
 	var err error
 
@@ -177,7 +177,7 @@ func redirectMiddleware(yt *youtubelink.Video, w http.ResponseWriter, r *http.Re
 	http.Redirect(w, r, directLink, http.StatusFound)
 }
 
-func streamMiddleware(yt *youtubelink.Video, w http.ResponseWriter, _ *http.Request) {
+func streamMiddleware(yt *goutube.Video, w http.ResponseWriter, _ *http.Request) {
 	// Set header before streaming.
 	w.Header().Set("Content-Type", "video/mp4")
 
@@ -209,10 +209,10 @@ func main() {
 	flag.Parse()
 
 	if *youtubeDlPathFlag != "" {
-		youtubelink.SetYoutubeDlCommand(*youtubeDlPathFlag)
+		goutube.SetYoutubeDlCommand(*youtubeDlPathFlag)
 	}
 
-	if (*youtubeDlFlag || *streamKeyFlag != "") && !youtubelink.IsAvailable() {
+	if (*youtubeDlFlag || *streamKeyFlag != "") && !goutube.IsAvailable() {
 		log.Fatalln("youtube-dl package is not installed or cannot be found")
 	}
 

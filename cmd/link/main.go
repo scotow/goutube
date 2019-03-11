@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"github.com/scotow/youtubelink"
+	"github.com/scotow/goutube"
 	"log"
 	"os"
 	"strings"
@@ -36,24 +36,24 @@ func getVideos() ([]string, error) {
 }
 
 func fetchLink(video string) (string, error) {
-	yt := youtubelink.Video{}
+	v := goutube.Video{}
 
-	err := yt.AddVideoLink(video)
+	err := v.AddVideoLink(video)
 	if err != nil {
 		return "", err
 	}
 
 	if *youtubeDlFlag {
-		return yt.YoutubeDlLink()
+		return v.YoutubeDlLink()
 	} else {
-		return yt.StreamPocketLink()
+		return v.StreamPocketLink()
 	}
 }
 
 func main() {
 	flag.Parse()
 
-	if *youtubeDlFlag && !youtubelink.IsAvailable() {
+	if *youtubeDlFlag && !goutube.IsAvailable() {
 		log.Fatalln("youtube-dl package is not installed or cannot be found")
 	}
 
