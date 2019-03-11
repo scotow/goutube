@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"regexp"
@@ -30,16 +29,21 @@ var (
 	ErrStreamPocketResponse = errors.New("invalid remote api response")
 )
 
+// Video represents a YouTube video.
+// To add video id and source IP address, use the AddVideoLink, AddSourceIp safe methods.
 type Video struct {
 	video    string
 	sourceIp string
 }
 
-type StreamPocketResponse struct {
+type streamPocketResponse struct {
 	Recorded string
 	Filename string
 }
 
+// AddVideoLink parse, check and add the source of a YouTube video.
+// video may be a 11 long video id string, or a YouTube video link.
+// Return nil if successful or ErrSource on failure.
 func (v *Video) AddVideoLink(video string) error {
 	if youtubeId.MatchString(video) {
 		v.video = video
@@ -55,6 +59,9 @@ func (v *Video) AddVideoLink(video string) error {
 	return ErrSource
 }
 
+// AddSourceIp parse, check and add the source IP address. Used for youtube-dl command.
+// ip is the string representation of the IP address.
+// Return nil if successful or ErrIp on failure.
 func (v *Video) AddSourceIp(ip string) error {
 	if net.ParseIP(ip) == nil {
 		return ErrIp
@@ -64,7 +71,13 @@ func (v *Video) AddSourceIp(ip string) error {
 	return nil
 }
 
+// Exists checks if the video exists using a YouTube API call.
+// Return true, nil if the video exists, or false with an optional error on failure.
 func (v *Video) Exists() (bool, error) {
+	if v.video == "" {
+		return false, nil
+	}
+
 	requestUrl := fmt.Sprintf("%s%s", youtubeExistsBaseURL, v.video)
 	resp, err := http.Get(requestUrl)
 	if err != nil {
@@ -74,6 +87,8 @@ func (v *Video) Exists() (bool, error) {
 	return resp.StatusCode == 200, nil
 }
 
+// YoutubeDlLink returns the direct link of the best quality mp4 video using the youtube-dl command.
+// Returns the direct link of the video and no error on success, or ("", error) on failure.
 func (v *Video) YoutubeDlLink() (string, error) {
 	if v.video == "" {
 		return "", ErrEmptyVideo
@@ -86,6 +101,8 @@ func (v *Video) YoutubeDlLink() (string, error) {
 	}
 }
 
+// StreamPocketLink returns the direct link of the best quality mp4 video using the streampocket.net API.
+// Returns the direct link of the video and no error on success, or ("", error) on failure.
 func (v *Video) StreamPocketLink() (string, error) {
 	if v.video == "" {
 		return "", ErrEmptyVideo
@@ -95,7 +112,7 @@ func (v *Video) StreamPocketLink() (string, error) {
 
 	res, err := http.Get(requestUrl)
 	if err != nil {
-		log.Fatal(err)
+		return "", ErrStreamPocketApi
 	}
 
 	data, err := ioutil.ReadAll(res.Body)
@@ -108,7 +125,7 @@ func (v *Video) StreamPocketLink() (string, error) {
 		return "", ErrStreamPocketApi
 	}
 
-	var response StreamPocketResponse
+	var response streamPocketResponse
 	err = json.Unmarshal(data, &response)
 	if err != nil {
 		return "", ErrStreamPocketResponse
@@ -117,6 +134,9 @@ func (v *Video) StreamPocketLink() (string, error) {
 	return response.Recorded, nil
 }
 
+// Stream writes the content of the video on a writer using the youtube-dl command.
+// wr is the writer where the video data will be written.
+// Returns no error on success or an ErrEmptyVideo on failure.
 func (v *Video) Stream(wr io.Writer) error {
 	if v.video == "" {
 		return ErrEmptyVideo

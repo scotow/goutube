@@ -10,6 +10,8 @@ var (
 	youtubeDlCommand = "youtube-dl"
 )
 
+// SetYoutubeDlCommand set the path of the youtube-dl command as a global settings.
+// This function is useful if the youtube-dl cannot be found in the PATH variable.
 func SetYoutubeDlCommand(path string) {
 	youtubeDlCommand = path
 }
@@ -22,6 +24,7 @@ func commandExists(name string) bool {
 	return true
 }
 
+// IsAvailable checks if the youtube-dl command is installed and findable on the system.
 func IsAvailable() bool {
 	return commandExists(youtubeDlCommand)
 }
