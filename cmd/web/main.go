@@ -42,24 +42,31 @@ func authorizationMiddleware(w http.ResponseWriter, r *http.Request, m videoMidd
 	}
 
 	header := r.Header.Get("Authorization")
+
+	// If the header is not set or empty, reject and ask for browser authentication.
 	if header == "" {
 		w.Header().Set("WWW-Authenticate", "Basic")
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
 
+	// Check for direct match (useful for curl command).
 	if header == *streamKeyFlag {
 		m(w, r, h)
 		return
 	}
 
+	// Should be a Basic authentication.
 	if strings.HasPrefix(header, "Basic") {
 		part := strings.Split(header, " ")
+
+		// Should be two parts separated by a space.
 		if len(part) != 2 {
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 			return
 		}
 
+		// Decode right part from base64.
 		keyBytes, err := base64.StdEncoding.DecodeString(part[1])
 		if err != nil {
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
@@ -67,10 +74,13 @@ func authorizationMiddleware(w http.ResponseWriter, r *http.Request, m videoMidd
 		}
 
 		key := string(keyBytes)
+
+		// Remove user part if specified.
 		if strings.HasPrefix(key, ":") {
 			key = key[1:]
 		}
 
+		// Check if password marches the key.
 		if key == *streamKeyFlag {
 			m(w, r, h)
 			return
@@ -80,7 +90,8 @@ func authorizationMiddleware(w http.ResponseWriter, r *http.Request, m videoMidd
 	http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 }
 
-func varMiddleware(w http.ResponseWriter, r *http.Request, h distributionHandler) {
+func pathMiddleware(w http.ResponseWriter, r *http.Request, h distributionHandler) {
+	// Extract video id from the path.
 	video, exists := mux.Vars(r)["video"]
 	if !exists {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -91,11 +102,13 @@ func varMiddleware(w http.ResponseWriter, r *http.Request, h distributionHandler
 }
 
 func bodyMiddleware(w http.ResponseWriter, r *http.Request, h distributionHandler) {
-	if r.ContentLength > maxBodySize {
+	// Check if body is not too big or chunked.
+	if r.ContentLength > maxBodySize || r.ContentLength == -1 {
 		http.Error(w, errBodyTooLarge.Error(), http.StatusNotAcceptable)
 		return
 	}
 
+	// Buff the all body.
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, errReadBody.Error(), http.StatusInternalServerError)
@@ -108,6 +121,7 @@ func bodyMiddleware(w http.ResponseWriter, r *http.Request, h distributionHandle
 		return
 	}
 
+	// Use the body as a video id/URL.
 	requestMiddleware(string(body), w, r, h)
 }
 
@@ -136,17 +150,19 @@ func requestMiddleware(video string, w http.ResponseWriter, r *http.Request, h d
 }
 
 func redirectMiddleware(yt *youtubelink.Video, w http.ResponseWriter, r *http.Request) {
-	if *clientIpFlag {
-		err := yt.AddSourceIp(realip.FromRequest(r))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	}
-
 	var directLink string
 	var err error
+
 	if *youtubeDlFlag {
+		// Add IP address to the request if using youtube-dl.
+		if *clientIpFlag {
+			err := yt.AddSourceIp(realip.FromRequest(r))
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+
 		directLink, err = yt.YoutubeDlLink()
 	} else {
 		directLink, err = yt.StreamPocketLink()
@@ -157,13 +173,15 @@ func redirectMiddleware(yt *youtubelink.Video, w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// Redirect to the video direct link.
 	http.Redirect(w, r, directLink, http.StatusFound)
 }
 
 func streamMiddleware(yt *youtubelink.Video, w http.ResponseWriter, _ *http.Request) {
-	// Stream the video data.
+	// Set header before streaming.
 	w.Header().Set("Content-Type", "video/mp4")
 
+	// Stream the video data.
 	err := yt.Stream(w)
 	if err != nil {
 		_, _ = w.Write([]byte(err.Error()))
@@ -172,7 +190,7 @@ func streamMiddleware(yt *youtubelink.Video, w http.ResponseWriter, _ *http.Requ
 }
 
 func redirectVarHandler(w http.ResponseWriter, r *http.Request) {
-	varMiddleware(w, r, redirectMiddleware)
+	pathMiddleware(w, r, redirectMiddleware)
 }
 
 func redirectBodyHandler(w http.ResponseWriter, r *http.Request) {
@@ -180,7 +198,7 @@ func redirectBodyHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func streamVarHandler(w http.ResponseWriter, r *http.Request) {
-	authorizationMiddleware(w, r, varMiddleware, streamMiddleware)
+	authorizationMiddleware(w, r, pathMiddleware, streamMiddleware)
 }
 
 func streamBodyHandler(w http.ResponseWriter, r *http.Request) {
@@ -199,6 +217,8 @@ func main() {
 	}
 
 	r := mux.NewRouter()
+
+	// Add public routes.
 	r.HandleFunc("/", redirectBodyHandler).Methods(http.MethodPost)
 	r.HandleFunc("/{video}", redirectVarHandler).Methods(http.MethodGet)
 	r.HandleFunc("/link", redirectBodyHandler).Methods(http.MethodPost)
@@ -206,6 +226,7 @@ func main() {
 	r.HandleFunc("/redirect", redirectBodyHandler).Methods(http.MethodPost)
 	r.HandleFunc("/redirect/{video}", redirectVarHandler).Methods(http.MethodGet)
 
+	// Add private routes if a key is specified.
 	if *streamKeyFlag != "" {
 		r.HandleFunc("/stream", streamBodyHandler).Methods(http.MethodPost)
 		r.HandleFunc("/stream/{video}", streamVarHandler).Methods(http.MethodGet)
