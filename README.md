@@ -1,6 +1,6 @@
 # goutube
 
-📹 YouTube video finder and stream proxy 📹
+📹 YouTube direct link finder and stream proxy 📹
 
 [![GoDoc](https://godoc.org/github.com/Scotow/goutube?status.svg)](https://godoc.org/github.com/Scotow/goutube)
 
