@@ -4,14 +4,15 @@ import (
 	"encoding/base64"
 	"errors"
 	"flag"
-	"github.com/gorilla/mux"
-	"github.com/scotow/goutube"
-	"github.com/tomasen/realip"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/gorilla/mux"
+	"github.com/scotow/goutube"
+	"github.com/tomasen/realip"
 )
 
 const (
